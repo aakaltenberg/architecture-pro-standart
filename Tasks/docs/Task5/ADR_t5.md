@@ -19,10 +19,10 @@
 |**№**|**Требование**|
 | :-: | :- |
 | 1 | Доступность сервиса кредитных заявок — 99.9% (24/7), с переключением на резервный ЦОД. |
-| 2 | Горизонтальное масштабирование нового сервиса кредитных заявок для выдерживания пиковых нагрузок. |
+| 2 | Горизонтальное масштабирование нового сервиса кредитных заявок для выдерживания пиковых нагрузок. Целевой показатель - 5000 RPS |
 | 3 | Запрет прямого доступа интернет-банка и сайта к БД АБС; использование промежуточных сервисов и очередей. |
 | 4 | Circuit Breaker для вызовов внешних систем (скоринг, БКИ, СМС-шлюз). |
-| 5 | Время отклика интерфейса при подаче заявки — не более 2 секунд; для предодобренных предложений — миллисекунды. |
+| 5 | Время отклика интерфейса при подаче заявки — не более 2 секунд; для предодобренных предложений — 300 мс. |
 | 6 | Использовать существующие технологии банка: Java, Python, MS SQL, Oracle. |
 | 7 | Избегать доработок ядра интернет-банка и Кредитного конвейера силами подрядчика. |
 | 8 | Чувствительные данные (паспорт, ФИО) передавать только по HTTPS/TLS и хранить в зашифрованном виде. |
@@ -38,100 +38,16 @@
 5. Хранение предодобренных предложений. Для быстрого отображения в интернет-банке используется Distributed-кэш Redis. Периодический расчёт выполняется отдельным потоком в сервисе в часы низкой нагрузки, что защищает систему скоринга от перегрузки.
 6. Отказоустойчивость и масштабирование. Сервис кредитных заявок выделен в отдельный сервис, который может быть горизонтально масштабируем. Для взаимодействия с внешними системами (скоринг, БКИ) применяется паттерн Circuit Breaker, чтобы изолировать сбои.
 
+Диаграмма контекста приведена в этом же каталоге: 
+1. md-формат: ./c4-context.md
+2. png-формат: ./c4-context.png
+3. puml-формат: ./c4-context.puml
 
-```puml
-@startuml title DepositService-CallServiceIntegration Context Diagram
+Диаграмма контейнеров приведена в этом же каталоге: 
+1. md-формат: ./c4-container.md
+2. png-формат: ./c4-container.png
+3. puml-формат: ./c4-container.puml
 
-!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
-
-Person(customer, "Клиент", "Подаёт заявку на кредит онлайн")
-Person(front_manager, "Сотрудник отделения", "Работает с заявкой в АБС")
-Person(back_manager, "Сотрудник бэк-офиса кредитов", "Обрабатывает заявки в Кредитном конвейере")
-
-System(site, "Сайт банка", "PHP/React")
-System(ib, "Интернет-банк", "ASP.NET MVC")
-System(credit_service, "Сервис кредитных заявок", "Java Spring Boot")
-System(abs, "АБС", "Delphi/Oracle")
-System(conveyor, "Кредитный конвейер", "Camunda/Java")
-System(scoring, "Система кредитного скоринга", "Python/Flask")
-System_Ext(bki, "Бюро кредитных историй", "Внешняя система")
-System_Ext(sms, "СМС-шлюз", "Отправка уведомлений")
-
-Rel(customer, site, "Просмотр предложений, подача заявки", "HTTPS")
-Rel(site, credit_service, "Отправка заявки", "REST API")
-Rel(customer, ib, "Просмотр предодобренных предложений, подача заявки", "HTTPS")
-Rel(ib, credit_service, "Получение предложений, отправка заявки", "REST API")
-Rel(credit_service, scoring, "Запрос скоринга", "REST API")
-Rel(scoring, bki, "Получение кредитной истории", "REST API")
-Rel(credit_service, conveyor, "Передача заявки для бэк-офиса", "REST API (или Kafka)")
-Rel(credit_service, abs, "Регистрация заявки для отделения", "Kafka")
-Rel(front_manager, abs, "Просмотр заявки", "Десктоп-клиент")
-Rel(back_manager, conveyor, "Обработка заявки", "Веб-интерфейс")
-Rel(credit_service, sms, "Отправка СМС", "HTTP")
-Rel(conveyor, sms, "Отправка СМС", "HTTP")
-
-@enduml
-```
-
-
-```puml
-@startuml
-
-!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
-
-Person(customer, "Клиент")
-Person(front_manager, "Сотрудник отделения")
-Person(back_manager, "Сотрудник бэк-офиса кредитов")
-
-System_Boundary(site_boundary, "Сайт банка") {
-    Container(site_ui, "Веб-сайт", "PHP/React", "Публичные страницы кредитов, форма заявки")
-}
-
-System_Boundary(ib_boundary, "Интернет-банк") {
-    Container(ib_ui, "Веб-приложение", "ASP.NET MVC", "Личный кабинет, предодобренные предложения")
-}
-
-System_Boundary(credit_service_boundary, "Сервис кредитных заявок") {
-    Container(credit_api, "API кредитных заявок", "Java Spring Boot", "Приём заявок с сайта и интернет-банка")
-    Container(credit_db, "БД кредитных заявок", "MS SQL", "Хранение заявок, статусов, решений")
-    Container(offer_cache, "Кэш предодобренных предложений", "Redis", "Хранение рассчитанных оффлайн предложений")
-}
-
-System_Boundary(abs_boundary, "АБС") {
-    ContainerDb(abs_db, "Основная БД", "Oracle", "Учёт счетов, кредитных договоров")
-    Container(abs_ui, "Десктоп-клиент", "Delphi", "Рабочее место менеджера отделения")
-    Container(abs_gateway, "Шлюз для онлайн-сервисов", "Kafka Consumer / PL/SQL", "Приём заявок из внешних систем")
-}
-
-System_Ext(conveyor_system, "Кредитный конвейер", "Camunda + Oracle")
-System_Ext(scoring, "Система скоринга", "Python/Flask + PostgreSQL")
-System_Ext(bki, "Бюро кредитных историй", "Внешний REST API")
-System_Ext(sms, "СМС-шлюз")
-
-Rel(customer, site_ui, "Подача заявки", "HTTPS")
-Rel(site_ui, credit_api, "Отправка данных заявки", "REST (JSON)")
-Rel(customer, ib_ui, "Просмотр предложений, подача заявки", "HTTPS")
-Rel(ib_ui, credit_api, "Запрос предложений, отправка заявки", "REST (JSON)")
-
-Rel(credit_api, scoring, "Запрос скоринга", "REST (JSON)")
-Rel(scoring, bki, "Получение КИ", "REST (SOAP)")
-Rel(credit_api, credit_db, "Сохранение заявки", "JDBC")
-Rel(credit_api, offer_cache, "Чтение/запись предложений", "Redis Protocol")
-Rel(credit_api, conveyor_system, "Отправка заявки в бэк-офис (если требуется ручная обработка)", "REST / Kafka")
-Rel(credit_api, abs_gateway, "Регистрация заявки для отделения", "Kafka")
-
-Rel(front_manager, abs_ui, "Просмотр заявки клиента", "Прямой доступ к БД")
-Rel(abs_ui, abs_db, "Чтение/запись", "Oracle Net")
-Rel(abs_gateway, abs_db, "Вставка заявки", "PL/SQL")
-
-Rel(back_manager, conveyor_system, "Обработка заявок", "HTTPS")
-Rel(conveyor_system, scoring, "Повторный скоринг при необходимости", "REST")
-
-Rel(credit_api, sms, "Отправка уведомлений", "HTTP")
-Rel(conveyor_system, sms, "Отправка уведомлений", "HTTP")
-
-@enduml
-```
 
 ### <a name="_bjrr7veeh80c"></a>**Альтернативы**
 1. Реализовать логику кредитных заявок внутри интернет-банка. Привело бы к разрастанию монолита, зависимости от подрядчика, сложностям с масштабированием и нарушению запрета прямого доступа к БД АБС.

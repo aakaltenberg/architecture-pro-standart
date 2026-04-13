@@ -28,65 +28,15 @@
 4. Автоматизация генерации файла – в составе deposit-service добавлен компонент-генератор, который по расписанию создаёт файл и выгружает его на SFTP-сервер. Расписание можно настраивать.
 5. Отказоустойчивость – в случае недоступности deposit-service система кол-центра отдаёт последние закэшированные ставки. Для кол-центра задержка обновления файла не критична.
 
-```puml
-@startuml title DepositService-CallServiceIntegration Context Diagram
+Диаграмма контекста приведена в этом же каталоге: 
+1. md-формат: ./c4-context.md
+2. png-формат: ./c4-context.png
+3. puml-формат: ./c4-context.puml
 
-!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
-
-Person(cc_operator, "Сотрудник кол-центра банка")
-Person(partner_operator, "Сотрудник партнёрского кол-центра")
-
-System(cc_system, "Система кол-центра", "Java/React")
-System(deposit_service, "Сервис депозитных ставок", "Java Spring Boot")
-
-System_Ext(partner_cc, "Система партнёрского кол-центра", "Внешняя")
-System_Ext(sftp, "SFTP-сервер банка", "Хранение файлов для партнёра")
-
-Rel(cc_operator, cc_system, "Просматривает ставки", "Веб-интерфейс")
-Rel(cc_system, deposit_service, "Запрашивает актуальные ставки", "REST API (HTTPS)")
-Rel(deposit_service, sftp, "Выгружает файл ставок", "SFTP")
-Rel(partner_operator, partner_cc, "Использует", "Веб-интерфейс")
-Rel(partner_cc, sftp, "Забирает файл ставок", "SFTP")
-
-@enduml
-```
-
-
-```puml
-@startuml
-
-!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
-
-Person(cc_operator, "Сотрудник кол-центра")
-Person(partner_operator, "Сотрудник партнёрского кол-центра")
-
-System_Boundary(cc_boundary, "Система кол-центра") {
-    Container(cc_ui, "Веб-интерфейс", "React", "Рабочее место оператора")
-    Container(cc_backend, "Бэкенд кол-центра", "Java Spring Boot", "Управление обращениями")
-    ContainerDb(cc_db, "БД кол-центра", "PostgreSQL")
-}
-
-System_Boundary(deposit_boundary, "Сервис депозитных ставок") {
-    Container(deposit_api, "API сервиса ставок", "Java Spring Boot", "Предоставляет ставки по REST")
-    ContainerDb(deposit_db, "БД ставок", "MS SQL")
-    Container(file_generator, "Генератор файлов", "Java", "Формирует CSV и выгружает на SFTP")
-}
-
-System_Ext(partner_cc, "Система партнёрского кол-центра", "Внешняя")
-Container_Ext(sftp_server, "SFTP-сервер банка", "Linux", "Файловое хранилище")
-
-Rel(cc_operator, cc_ui, "Просмотр ставок", "HTTPS")
-Rel(cc_ui, cc_backend, "API запросы", "REST")
-Rel(cc_backend, deposit_api, "Получение ставок", "REST (HTTPS)")
-Rel(cc_backend, cc_db, "Кэширование ставок", "JDBC")
-Rel(deposit_api, deposit_db, "Чтение данных", "JDBC")
-Rel(file_generator, deposit_db, "Чтение данных", "JDBC")
-Rel(file_generator, sftp_server, "Запись файла", "SFTP")
-Rel(partner_operator, partner_cc, "Использует", "HTTPS")
-Rel(partner_cc, sftp_server, "Чтение файла", "SFTP")
-
-@enduml
-```
+Диаграмма контейнеров приведена в этом же каталоге: 
+1. md-формат: ./c4-container.md
+2. png-формат: ./c4-container.png
+3. puml-формат: ./c4-container.puml
 
 ### <a name="_bjrr7veeh80c"></a>**Альтернативы**
 1. Передавать ставки в кол-центр через файлы. Это замедлит обновление и усложнит процесс для внутренней системы, где возможна online-интеграция.

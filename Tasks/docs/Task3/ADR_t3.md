@@ -18,7 +18,7 @@
 |**№**|**Требование**|
 | :-: | :- |
 | 1 | Доступность сервисов интернет-банка — 99.9% (24/7), с переключением на резервный ЦОД при сбое. |
-| 2 | Горизонтальное масштабирование новых компонентов для выдерживания роста нагрузки. |
+| 2 | Горизонтальное масштабирование новых компонентов для выдерживания роста нагрузки, целевой показатель - 5000 RPS. |
 | 3 | АБС не должна быть перегружена прямыми онлайн-запросами; использовать промежуточные сервисы, очереди, кэш. |
 | 4 | Circuit Breaker для вызовов внешних систем (СМС-шлюз, в будущем – БКИ, скоринг). |
 | 5 | Время отклика интерфейса – миллисекунды; быстрая загрузка справочных данных (кэширование). |
@@ -36,79 +36,15 @@
 
 4. В рамках архитектурного решения было предложено сохранять все необходимые справочники в локальное хранилище интернет-банка MS SQL, а также хранить самые горячие справочные данные в кэше InProcess сервиса депозитных заявок. Обновления локального хранилища производить раз в какой-то период.
 
-```puml
-@startuml
-!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+Диаграмма контекста приведена в этом же каталоге: 
+1. md-формат: ./c4-context.md
+2. png-формат: ./c4-context.png
+3. puml-формат: ./c4-context.puml
 
-Person(customer, "Клиент", "Посетитель сайта / Пользователь интернет-банка")
-Person(cc_manager, "Менеджер кол-центра", "Подтверждает заявки с сайта")
-Person(backoffice, "Сотрудник бэк-офиса депозитов", "Обрабатывает заявки на депозиты")
-
-System(site, "Сайт банка", "PHP/React")
-System(ib, "Интернет-банк", "ASP.NET MVC")
-System(cc_system, "Система кол-центра", "Java/React")
-System(abs, "АБС", "Delphi/Oracle")
-System_Ext(sms, "СМС-шлюз", "Отправка уведомлений")
-
-Rel(customer, site, "Просматривает депозиты, подаёт заявку", "HTTPS")
-Rel(site, cc_system, "Передаёт заявку с контактами", "REST API")
-Rel(cc_manager, cc_system, "Просматривает заявки, подтверждает", "Веб-интерфейс")
-Rel(cc_system, abs, "Передаёт подтверждённую заявку", "Очередь / REST API")
-Rel(customer, ib, "Просматривает персональные ставки, подаёт заявку с СМС", "HTTPS")
-Rel(ib, abs, "Регистрирует заявку из интернет-банка", "Очередь / REST API через сервис")
-Rel(backoffice, abs, "Обрабатывает заявки, подтверждает ставки", "Десктоп-клиент")
-Rel(abs, sms, "Отправляет СМС о статусе заявки", "HTTP/SMPP")
-@enduml
-```
-
-```puml
-@startuml
-!includeurl https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Container.puml
-
-Person(customer, "Клиент")
-Person(cc_manager, "Менеджер кол-центра")
-Person(backoffice, "Сотрудник бэк-офиса")
-
-System_Boundary(ib_system, "Интернет-банк") {
-    Container(web_app, "Веб-приложение", "ASP.NET MVC 4.5", "Пользовательский интерфейс, формы заявок")
-    Container(deposit_service, "Сервис депозитных заявок", "Java Spring Boot", "Приём заявок, расчёт персональных ставок, отправка в АБС")
-    ContainerDb(deposit_db, "БД депозитного сервиса", "MS SQL", "Хранение заявок, справочников ставок")
-}
-
-System_Boundary(cc_system_boundary, "Система кол-центра") {
-    Container(cc_ui, "Веб-интерфейс кол-центра", "React", "Рабочее место менеджера")
-    Container(cc_backend, "Бэкенд кол-центра", "Java Spring Boot", "Управление обращениями")
-    ContainerDb(cc_db, "БД кол-центра", "PostgreSQL", "Хранение заявок и обращений")
-}
-
-System_Boundary(abs_system, "АБС") {
-    ContainerDb(abs_db, "Основная БД", "Oracle", "Учёт счетов, депозитных договоров")
-    Container(abs_ui, "Десктоп-клиент", "Delphi", "Рабочее место бэк-офиса")
-    Container(abs_gateway, "Шлюз для онлайн-сервисов", "PL/SQL API / Kafka Consumer", "Точка входа для заявок из внешних систем")
-}
-
-System_Ext(sms_gw, "СМС-шлюз")
-System_Ext(site, "Сайт банка", "PHP/React")
-
-Rel(customer, site, "Подаёт заявку", "HTTPS")
-Rel(site, cc_backend, "Передаёт заявку", "REST API")
-
-Rel(cc_manager, cc_ui, "Подтверждает заявки", "HTTPS")
-Rel(cc_ui, cc_backend, "API вызовы", "REST")
-Rel(cc_backend, cc_db, "Сохраняет статусы", "JDBC")
-Rel(cc_backend, abs_gateway, "Отправляет подтверждённую заявку", "Kafka")
-
-Rel(customer, web_app, "Использует", "HTTPS")
-Rel(web_app, deposit_service, "Вызывает API", "REST (JSON)")
-Rel(deposit_service, deposit_db, "Сохраняет заявки, кэш ставок", "JDBC")
-Rel(deposit_service, abs_gateway, "Отправляет заявку", "Kafka")
-
-Rel(abs_gateway, abs_db, "Вставляет заявку", "PL/SQL")
-Rel(backoffice, abs_ui, "Обрабатывает заявки", "")
-Rel(abs_ui, abs_db, "Чтение/запись", "PL/SQL")
-Rel(abs_db, sms_gw, "Инициирует отправку СМС", "HTTP")
-@enduml
-```
+Диаграмма контейнеров приведена в этом же каталоге: 
+1. md-формат: ./c4-container.md
+2. png-формат: ./c4-container.png
+3. puml-формат: ./c4-container.puml
 
 ### <a name="_bjrr7veeh80c"></a>**Альтернативы**
 1. В качестве альтернативного решения в дальнейшем для кэширования справочников можно перейти на использование DistributedMemory - Redis. Сейчас команды не знакомы с данной технологией.

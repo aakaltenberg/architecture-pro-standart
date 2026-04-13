@@ -1,0 +1,46 @@
+@startuml
+!includeurl https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Container.puml
+
+Person(customer, "Клиент")
+Person(cc_manager, "Менеджер кол-центра")
+Person(backoffice, "Сотрудник бэк-офиса")
+
+System_Boundary(ib_system, "Интернет-банк") {
+    Container(web_app, "Веб-приложение", "ASP.NET MVC 4.5", "Пользовательский интерфейс, формы заявок")
+    Container(deposit_service, "Сервис депозитных заявок", "Java Spring Boot", "Приём заявок, расчёт персональных ставок, отправка в АБС")
+    ContainerDb(deposit_db, "БД депозитного сервиса", "MS SQL", "Хранение заявок, справочников ставок")
+}
+
+System_Boundary(cc_system_boundary, "Система кол-центра") {
+    Container(cc_ui, "Веб-интерфейс кол-центра", "React", "Рабочее место менеджера")
+    Container(cc_backend, "Бэкенд кол-центра", "Java Spring Boot", "Управление обращениями")
+    ContainerDb(cc_db, "БД кол-центра", "PostgreSQL", "Хранение заявок и обращений")
+}
+
+System_Boundary(abs_system, "АБС") {
+    ContainerDb(abs_db, "Основная БД", "Oracle", "Учёт счетов, депозитных договоров")
+    Container(abs_ui, "Десктоп-клиент", "Delphi", "Рабочее место бэк-офиса")
+    Container(abs_gateway, "Шлюз для онлайн-сервисов", "PL/SQL API / Kafka Consumer", "Точка входа для заявок из внешних систем")
+}
+
+System_Ext(sms_gw, "СМС-шлюз")
+System_Ext(site, "Сайт банка", "PHP/React")
+
+Rel(customer, site, "Подаёт заявку", "HTTPS")
+Rel(site, cc_backend, "Передаёт заявку", "REST API")
+
+Rel(cc_manager, cc_ui, "Подтверждает заявки", "HTTPS")
+Rel(cc_ui, cc_backend, "API вызовы", "REST")
+Rel(cc_backend, cc_db, "Сохраняет статусы", "JDBC")
+Rel(cc_backend, abs_gateway, "Отправляет подтверждённую заявку", "Kafka")
+
+Rel(customer, web_app, "Использует", "HTTPS")
+Rel(web_app, deposit_service, "Вызывает API", "REST (JSON)")
+Rel(deposit_service, deposit_db, "Сохраняет заявки, кэш ставок", "JDBC")
+Rel(deposit_service, abs_gateway, "Отправляет заявку", "Kafka")
+
+Rel(abs_gateway, abs_db, "Вставляет заявку", "PL/SQL")
+Rel(backoffice, abs_ui, "Обрабатывает заявки", "")
+Rel(abs_ui, abs_db, "Чтение/запись", "PL/SQL")
+Rel(abs_db, sms_gw, "Инициирует отправку СМС", "HTTP")
+@enduml
