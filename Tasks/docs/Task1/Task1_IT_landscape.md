@@ -1,0 +1,1 @@
+![](./Task1_IT_landscape.drawio)

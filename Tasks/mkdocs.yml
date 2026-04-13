@@ -1,0 +1,9 @@
+site_name: Sprint 3
+theme: readthedocs
+markdown_extensions:
+  - md_in_html
+  - plantuml_markdown
+plugins:
+  - plantuml:
+      puml_url: https://www.plantuml.com/plantuml/
+  - drawio

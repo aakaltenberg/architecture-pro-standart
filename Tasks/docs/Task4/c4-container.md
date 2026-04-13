@@ -1,0 +1,37 @@
+
+
+```puml
+@startuml
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+Person(cc_operator, "Сотрудник кол-центра")
+Person(partner_operator, "Сотрудник партнёрского кол-центра")
+
+System_Boundary(cc_boundary, "Система кол-центра") {
+    Container(cc_ui, "Веб-интерфейс", "React", "Рабочее место оператора")
+    Container(cc_backend, "Бэкенд кол-центра", "Java Spring Boot", "Управление обращениями")
+    ContainerDb(cc_db, "БД кол-центра", "PostgreSQL")
+}
+
+System_Boundary(deposit_boundary, "Сервис депозитных ставок") {
+    Container(deposit_api, "API сервиса ставок", "Java Spring Boot", "Предоставляет ставки по REST")
+    ContainerDb(deposit_db, "БД ставок", "MS SQL")
+    Container(file_generator, "Генератор файлов", "Java", "Формирует CSV и выгружает на SFTP")
+}
+
+System_Ext(partner_cc, "Система партнёрского кол-центра", "Внешняя")
+Container_Ext(sftp_server, "SFTP-сервер банка", "Linux", "Файловое хранилище")
+
+Rel(cc_operator, cc_ui, "Просмотр ставок", "HTTPS")
+Rel(cc_ui, cc_backend, "API запросы", "REST")
+Rel(cc_backend, deposit_api, "Получение ставок", "REST (HTTPS)")
+Rel(cc_backend, cc_db, "Кэширование ставок", "JDBC")
+Rel(deposit_api, deposit_db, "Чтение данных", "JDBC")
+Rel(file_generator, deposit_db, "Чтение данных", "JDBC")
+Rel(file_generator, sftp_server, "Запись файла", "SFTP")
+Rel(partner_operator, partner_cc, "Использует", "HTTPS")
+Rel(partner_cc, sftp_server, "Чтение файла", "SFTP")
+
+@enduml
+```
